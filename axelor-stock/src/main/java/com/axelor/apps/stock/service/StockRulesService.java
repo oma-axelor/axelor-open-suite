@@ -24,27 +24,29 @@ import com.axelor.apps.stock.db.StockLocation;
 import com.axelor.apps.stock.db.StockLocationLine;
 import com.axelor.apps.stock.db.StockRules;
 import java.math.BigDecimal;
+import java.util.List;
 
 public interface StockRulesService {
-  void generateOrder(Product product, BigDecimal qty, StockLocationLine stockLocationLine, int type)
-      throws AxelorException;
 
-  void generatePurchaseOrder(
-      Product product, BigDecimal qty, StockLocationLine stockLocationLine, int type)
-      throws AxelorException;
+  void processStockLocationLineNonCompliantToStockRule(
+      StockRules stockRules, StockLocationLine stockLocationLine, int type) throws AxelorException;
 
-  boolean useMinStockRules(
-      StockLocationLine stockLocationLine, StockRules stockRules, BigDecimal qty, int type);
+  boolean useMinStockRules(StockLocationLine stockLocationLine, StockRules stockRules, int type);
 
   StockRules getStockRules(Product product, StockLocation stockLocation, int type, int useCase);
 
+  StockRules getEligibleStockRulesFromList(
+      List<StockRules> stockRules,
+      Product product,
+      StockLocation stockLocation,
+      int type,
+      int useCase);
+
   BigDecimal getQtyToOrder(
-      BigDecimal qty,
       StockLocationLine stockLocationLine,
       int type,
       StockRules stockRules,
       BigDecimal minReorderQty);
 
-  BigDecimal getQtyToOrder(
-      BigDecimal qty, StockLocationLine stockLocationLine, int type, StockRules stockRules);
+  BigDecimal getQtyToOrder(StockLocationLine stockLocationLine, int type, StockRules stockRules);
 }

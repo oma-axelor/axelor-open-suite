@@ -46,6 +46,9 @@ public class StockBatchService extends AbstractBatchService {
       case StockBatchRepository.ACTION_RECOMPUTE_STOCK_LOCATION_LINE:
         batch = recomputeStockLocationLines(stockBatch);
         break;
+      case StockBatchRepository.ACTION_RUN_STOCK_RULES_BATCH:
+        batch = runStockRulesBatch(stockBatch);
+        break;
       default:
         throw new AxelorException(
             TraceBackRepository.CATEGORY_INCONSISTENCY,
@@ -57,7 +60,10 @@ public class StockBatchService extends AbstractBatchService {
   }
 
   protected Batch recomputeStockLocationLines(StockBatch stockBatch) {
-
     return Beans.get(BatchRecomputeStockLocationLines.class).run(stockBatch);
+  }
+
+  protected Batch runStockRulesBatch(StockBatch stockBatch) {
+    return Beans.get(BatchCheckStockComplianceWithStockRules.class).run(stockBatch);
   }
 }

@@ -47,7 +47,6 @@ import com.axelor.message.db.repo.MessageRepository;
 import com.axelor.message.db.repo.TemplateRepository;
 import com.axelor.message.service.TemplateMessageService;
 import com.google.inject.Inject;
-import com.google.inject.persist.Transactional;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -62,6 +61,9 @@ public class StockRulesServiceSupplychainImpl extends StockRulesServiceImpl {
   protected TemplateMessageService templateMessageService;
   protected MessageRepository messageRepo;
   protected StockConfigRepository stockConfigRepo;
+  protected AppPurchaseService appPurchaseService;
+  protected PurchaseOrderService purchaseOrderService;
+  protected AppSupplychainService appSupplychainService;
 
   @Inject
   public StockRulesServiceSupplychainImpl(
@@ -71,7 +73,10 @@ public class StockRulesServiceSupplychainImpl extends StockRulesServiceImpl {
       TemplateRepository templateRepo,
       TemplateMessageService templateMessageService,
       MessageRepository messageRepo,
-      StockConfigRepository stockConfigRepo) {
+      StockConfigRepository stockConfigRepo,
+      AppPurchaseService appPurchaseService,
+      PurchaseOrderService purchaseOrderService,
+      AppSupplychainService appSupplychainService) {
     super(stockRuleRepo);
     this.purchaseOrderLineService = purchaseOrderLineService;
     this.purchaseOrderRepo = purchaseOrderRepo;
@@ -79,85 +84,72 @@ public class StockRulesServiceSupplychainImpl extends StockRulesServiceImpl {
     this.templateMessageService = templateMessageService;
     this.messageRepo = messageRepo;
     this.stockConfigRepo = stockConfigRepo;
+    this.appPurchaseService = appPurchaseService;
+    this.purchaseOrderService = purchaseOrderService;
+    this.appSupplychainService = appSupplychainService;
   }
 
   @Override
-  @Transactional(rollbackOn = {Exception.class})
-  public void generatePurchaseOrder(
-      Product product, BigDecimal qty, StockLocationLine stockLocationLine, int type)
-      throws AxelorException {
-
-    if (!Beans.get(AppSupplychainService.class).isApp("supplychain")) {
-      super.generatePurchaseOrder(product, qty, stockLocationLine, type);
-      return;
-    }
-
-    StockLocation stockLocation = stockLocationLine.getStockLocation();
-
-    // TODO à supprimer après suppression des variantes
-    if (stockLocation == null) {
-      return;
-    }
-
-    StockRules stockRules =
-        this.getStockRules(
-            product, stockLocation, type, StockRulesRepository.USE_CASE_STOCK_CONTROL);
+  public void processStockLocationLineNonCompliantToStockRule(
+      StockRules stockRules, StockLocationLine stockLocationLine, int type) throws AxelorException {
+    super.processStockLocationLineNonCompliantToStockRule(stockRules, stockLocationLine, type);
 
     if (stockRules == null) {
       return;
     }
 
-    if (this.useMinStockRules(stockLocationLine, stockRules, qty, type)) {
+    if (stockRules.getAlert()) {
+      generateAndSendMessage(stockRules);
+    }
 
-      if (stockRules.getOrderAlertSelect().equals(StockRulesRepository.ORDER_ALERT_ALERT)) {
-        this.generateAndSendMessage(stockRules);
+    StockLocation stockLocation = stockLocationLine.getStockLocation();
 
-      } else if (stockRules
-          .getOrderAlertSelect()
-          .equals(StockRulesRepository.ORDER_ALERT_PURCHASE_ORDER)) {
+    if (stockLocation == null
+        || appSupplychainService.isApp("supplychain")
+        || !stockRules
+            .getOrderAlertSelect()
+            .equals(StockRulesRepository.ORDER_ALERT_PURCHASE_ORDER)) {
+      return;
+    }
 
-        BigDecimal minReorderQty = getDefaultSupplierMinQty(product);
-        BigDecimal qtyToOrder =
-            this.getQtyToOrder(qty, stockLocationLine, type, stockRules, minReorderQty);
-        Partner supplierPartner = product.getDefaultSupplierPartner();
+    Product product = stockLocationLine.getProduct();
 
-        if (supplierPartner != null) {
+    BigDecimal minReorderQty = getDefaultSupplierMinQty(product);
+    BigDecimal qtyToOrder = this.getQtyToOrder(stockLocationLine, type, stockRules, minReorderQty);
+    Partner supplierPartner = product.getDefaultSupplierPartner();
 
-          Company company = stockLocation.getCompany();
-          LocalDate today = Beans.get(AppBaseService.class).getTodayDate(company);
+    if (supplierPartner != null) {
 
-          PurchaseOrderSupplychainService purchaseOrderSupplychainService =
-              Beans.get(PurchaseOrderSupplychainService.class);
+      Company company = stockLocation.getCompany();
+      LocalDate today = Beans.get(AppBaseService.class).getTodayDate(company);
 
-          PurchaseOrder purchaseOrder =
-              purchaseOrderRepo.save(
-                  purchaseOrderSupplychainService.createPurchaseOrder(
-                      AuthUtils.getUser(),
-                      company,
-                      null,
-                      supplierPartner.getCurrency(),
-                      today.plusDays(supplierPartner.getDeliveryDelay()),
-                      stockRules.getName(),
-                      null,
-                      stockLocation,
-                      today,
-                      Beans.get(PartnerPriceListService.class)
-                          .getDefaultPriceList(supplierPartner, PriceListRepository.TYPE_PURCHASE),
-                      supplierPartner,
-                      null));
+      PurchaseOrderSupplychainService purchaseOrderSupplychainService =
+          Beans.get(PurchaseOrderSupplychainService.class);
 
-          purchaseOrder.addPurchaseOrderLineListItem(
-              purchaseOrderLineService.createPurchaseOrderLine(
-                  purchaseOrder, product, null, null, qtyToOrder, product.getUnit()));
+      PurchaseOrder purchaseOrder =
+          purchaseOrderRepo.save(
+              purchaseOrderSupplychainService.createPurchaseOrder(
+                  AuthUtils.getUser(),
+                  company,
+                  null,
+                  supplierPartner.getCurrency(),
+                  today.plusDays(supplierPartner.getDeliveryDelay()),
+                  stockRules.getName(),
+                  null,
+                  stockLocation,
+                  today,
+                  Beans.get(PartnerPriceListService.class)
+                      .getDefaultPriceList(supplierPartner, PriceListRepository.TYPE_PURCHASE),
+                  supplierPartner,
+                  null));
 
-          Beans.get(PurchaseOrderService.class).computePurchaseOrder(purchaseOrder);
+      purchaseOrder.addPurchaseOrderLineListItem(
+          purchaseOrderLineService.createPurchaseOrderLine(
+              purchaseOrder, product, null, null, qtyToOrder, product.getUnit()));
 
-          purchaseOrderRepo.save(purchaseOrder);
-          if (stockRules.getAlert()) {
-            this.generateAndSendMessage(stockRules);
-          }
-        }
-      }
+      purchaseOrderService.computePurchaseOrder(purchaseOrder);
+
+      purchaseOrderRepo.save(purchaseOrder);
     }
   }
 
@@ -203,7 +195,7 @@ public class StockRulesServiceSupplychainImpl extends StockRulesServiceImpl {
    */
   protected BigDecimal getDefaultSupplierMinQty(Product product) {
     Partner defaultSupplierPartner = product.getDefaultSupplierPartner();
-    if (Beans.get(AppPurchaseService.class).getAppPurchase().getManageSupplierCatalog()) {
+    if (appPurchaseService.getAppPurchase().getManageSupplierCatalog()) {
       List<SupplierCatalog> supplierCatalogList = product.getSupplierCatalogList();
       if (defaultSupplierPartner != null && supplierCatalogList != null) {
         for (SupplierCatalog supplierCatalog : supplierCatalogList) {

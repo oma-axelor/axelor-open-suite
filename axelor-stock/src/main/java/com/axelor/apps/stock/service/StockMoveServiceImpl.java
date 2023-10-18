@@ -63,6 +63,7 @@ import com.google.inject.persist.Transactional;
 import java.lang.invoke.MethodHandles;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -493,7 +494,9 @@ public class StockMoveServiceImpl implements StockMoveService {
 
     stockMoveLineService.storeCustomsCodes(stockMove.getStockMoveLineList());
 
-    stockMove.setRealDate(appBaseService.getTodayDate(stockMove.getCompany()));
+    ZonedDateTime zonedDateTime = appBaseService.getTodayDateTime(stockMove.getCompany());
+    stockMove.setRealDate(zonedDateTime.toLocalDate());
+    stockMove.setDeliveredAtDateTime(zonedDateTime.toLocalDateTime());
     resetMasses(stockMove);
 
     if (stockMove.getIsWithBackorder() && mustBeSplit(stockMove.getStockMoveLineList())) {

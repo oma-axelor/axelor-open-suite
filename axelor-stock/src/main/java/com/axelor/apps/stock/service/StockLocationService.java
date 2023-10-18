@@ -63,4 +63,7 @@ public interface StockLocationService {
       throws AxelorException;
 
   String computeStockLocationChildren(StockLocation stockLocation);
+
+  Set<Long> getLocationAndAllParentLocationsIdsOrderedFromTheClosestToTheFurthest(
+      StockLocation stockLocation);
 }

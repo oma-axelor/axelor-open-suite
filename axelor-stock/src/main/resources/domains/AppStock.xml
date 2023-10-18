@@ -34,6 +34,9 @@
       default="EAN_13"/>
     <boolean name="isManageStockLocationOnStockMoveLine"
       title="Manage stock location on stock move lines"/>
+    <datetime name="lastStockComplianceCheckDateTime"
+      title="Last stock compliance with stock rules check date time"
+      help="Last stock compliance with stock rules check successful batch execution date time."/>
 
     <track>
       <field name="isEnabledProductDescriptionCopy" on="UPDATE"/>

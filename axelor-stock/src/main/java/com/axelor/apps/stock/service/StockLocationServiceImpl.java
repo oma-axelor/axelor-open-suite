@@ -45,6 +45,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -333,5 +334,22 @@ public class StockLocationServiceImpl implements StockLocationService {
         getAllLocationAndSubLocation(stockLocation, false).stream()
             .map(location -> location.getId().toString())
             .collect(Collectors.joining(",")));
+  }
+
+  @Override
+  public Set<Long> getLocationAndAllParentLocationsIdsOrderedFromTheClosestToTheFurthest(
+      StockLocation stockLocation) {
+    Set<Long> resultSet = new LinkedHashSet<>();
+    if (stockLocation == null) {
+      return resultSet;
+    }
+    resultSet.add(stockLocation.getId());
+    StockLocation parentStockLocation = stockLocation.getParentStockLocation();
+    /* Adding to the set returns false if the value already exists, in our case this could be a good
+    way to prevent an infinite loop */
+    while (parentStockLocation != null && resultSet.add(parentStockLocation.getId())) {
+      parentStockLocation = parentStockLocation.getParentStockLocation();
+    }
+    return resultSet;
   }
 }

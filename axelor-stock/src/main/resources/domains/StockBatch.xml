@@ -16,11 +16,17 @@
     <string name="description" title="Description" large="true"/>
     <one-to-many name="batchList" ref="com.axelor.apps.base.db.Batch"
       mappedBy="stockBatch" title="Batchs"/>
+    <boolean name="runFromLastExecution" title="Run from last batch execution to now"/>
+    <one-to-many name="usedStockRulesList" title="Used stock rules"
+      ref="com.axelor.apps.stock.db.StockRules"/>
 
     <extra-code><![CDATA[
 
 	   	// ACTION TYPE
-		public static final int ACTION_RECOMPUTE_STOCK_LOCATION_LINE = 1;
+		/* WARNING: The use of re-computation stock location history batch should be avoided for now as this
+        feature is not working properly */
+	    public static final int ACTION_RECOMPUTE_STOCK_LOCATION_LINE = 1;
+		public static final int ACTION_RUN_STOCK_RULES_BATCH = 2;
 
 	]]></extra-code>
 

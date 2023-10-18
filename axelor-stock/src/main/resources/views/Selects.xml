@@ -150,6 +150,7 @@
 
   <selection name="stock.batch.action.select">
     <option value="1">Recompute stock location lines</option>
+    <option value="2">Check stock compliance with stock rules</option>
   </selection>
 
   <selection name="stock.stock.location.line.history.type.select">
