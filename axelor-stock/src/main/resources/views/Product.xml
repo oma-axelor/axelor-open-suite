@@ -132,10 +132,14 @@
         <panel name="trackingNumberPanel" title="Tracking number" showTitle="false"
           showIf="productTypeSelect == 'storable'" if="__config__.app.isApp('stock')">
           <panel colSpan="12" name="trackingConfigPanel">
-            <field name="trackingNumberConfiguration" canNew="true"
+            <field name="trackingNumberConfiguration" readonly="true"
+              requiredIf="checkExpirationDateAtStockMoveRealization"
               form-view="tracking-number-configuration-form"
               grid-view="tracking-number-configuration-grid"
               if="!__config__.app.getApp('base')?.companySpecificProductFieldsSet?.find({it.name == 'trackingNumberConfiguration'})"/>
+            <button name="changeTrackingNumberConfigurationButton"
+              title="Change tracking number configuration"
+              onClick="action-product-view-open-tracking-number-config-wizard"/>
           </panel>
         </panel>
       </insert>
@@ -180,5 +184,119 @@
     <domain>self.stockLocationLine.product.id = :_id</domain>
     <context name="_id" expr="eval: id"/>
   </action-view>
+
+
+  <action-view name="action-product-view-open-tracking-number-config-wizard"
+               model="com.axelor.utils.db.Wizard" title="Tracking number configuration">
+    <view type="form" name="tracking-number-config-change-wizard-form"/>
+    <view-param name="popup" value="true"/>
+    <view-param name="show-toolbar" value="false"/>
+    <view-param name="show-confirm" value="false"/>
+    <view-param name="popup-save" value="false"/>
+    <context name="_product" expr="eval: __self__"/>
+    <context name="_oldTrackingNumberConfiguration" expr="eval: trackingNumberConfiguration"/>
+  </action-view>
+
+  <form name="tracking-number-config-change-wizard-form" title="" model="com.axelor.utils.db.Wizard"
+    onNew="action-tracking-number-config-change-wizard-method-on-new">
+    <panel name="mainPanel">
+      <field name="$_product" title="Product" type="many-to-one"
+        target="com.axelor.apps.base.db.Product"/>
+      <field name="$_oldTrackingNumberConfiguration" title="Old tracking number config"
+        type="many-to-one" target="com.axelor.apps.stock.db.TrackingNumberConfiguration"/>
+      <field name="$_newTrackingNumberConfiguration" title="Tracking number config"
+        type="many-to-one" target="com.axelor.apps.stock.db.TrackingNumberConfiguration"/>
+      <field name="$_stockLocationLine" title="Stock location lines" type="one-to-many"
+        target="com.axelor.apps.stock.db.StockLocationLine"
+        grid-view="tracking-number-config-change-wizard-stock-location-line-grid" colSpan="12"/>
+    </panel>
+  </form>
+
+  <grid name="tracking-number-config-change-wizard-stock-location-line-grid"
+    title="Stock Locations content" model="com.axelor.apps.stock.db.StockLocationLine"
+    orderBy="product">
+    <field name="product" form-view="product-form" grid-view="product-grid"/>
+    <field name="stockLocation" form-view="stock-location-form"
+      grid-view="stock-location-grid"/>
+    <field name="currentQty" aggregate="sum" x-scale="2"/>
+    <field name="futureQty" aggregate="sum" x-scale="2"/>
+    <field name="unit" form-view="unit-form" grid-view="unit-grid"/>
+    <field name="$_qtyLeft" title="Quantity left" type="decimal"/>
+    <button name="createDetailLinesBtn" title="Create detail lines" icon="fa-check"
+      onClick="action-tracking-number-config-change-view-open-stock-location-detail-lines-creation-wizard"/>
+
+  </grid>
+
+  <action-method name="action-tracking-number-config-change-wizard-method-on-new">
+    <call class="com.axelor.apps.stock.web.ProductStockController"
+          method="trackingNumberConfigChangeOnLoad"/>
+  </action-method>
+
+  <action-view name="action-tracking-number-config-change-view-open-stock-location-detail-lines-creation-wizard"
+               model="com.axelor.utils.db.Wizard" title="Stock location detail lines creation wizard">
+    <view type="form" name="tracking-number-config-change-add-stock-detail-lines-wizard-form"/>
+    <view-param name="popup" value="reload"/>
+    <view-param name="show-toolbar" value="false"/>
+    <view-param name="show-confirm" value="false"/>
+    <view-param name="popup-save" value="false"/>
+    <context name="_product" expr="eval: product"/>
+    <context name="_stockLocation" expr="eval: stockLocation"/>
+    <context name="_qtyLeft" expr="eval: _qtyLeft"/>
+  </action-view>
+
+  <form name="tracking-number-config-change-add-stock-detail-lines-wizard-form" title="Add stock detail lines wizard" model="com.axelor.utils.db.Wizard"
+        onNew="action-tracking-number-config-change-record-stock-detail-lines-on-new">
+    <panel name="mainPanel">
+      <field name="_product" title="Product" type="many-to-one"
+             target="com.axelor.apps.base.db.Product"/>
+      <field name="_stockLocation" title="Stock location"
+             type="many-to-one" target="com.axelor.apps.stock.db.StockLocation"/>
+      <field name="_originalQtyLeft" title="Quantity left" type="decimal"/>
+      <field name="$_remainingQtyLeft" title="Quantity left" type="decimal"/>
+      <field name="_stockLocationLineList" title="Stock location lines" type="one-to-many"
+             target="com.axelor.apps.stock.db.StockLocationLine"
+             form-view="stock-location-line-details-wizard-form"
+             grid-view="stock-location-line-tracking-number-config-wizard-grid" colSpan="12"
+             onChange="action-tracking-number-config-record-on-stock-location-line-list-change"/>
+    </panel>
+  </form>
+
+  <action-record name="action-tracking-number-config-change-record-stock-detail-lines-on-new" model="com.axelor.utils.db.Wizard">
+    <field name="_product" expr="eval: _product"/>
+    <field name="_stockLocation" expr="eval: _stockLocation"/>
+    <field name="_originalQtyLeft" expr="eval: _qtyLeft"/>
+    <field name="$_remainingQtyLeft" expr="eval: _qtyLeft"/>
+  </action-record>
+
+  <action-record name="action-tracking-number-config-record-on-stock-location-line-list-change" model="com.axelor.utils.db.Wizard">
+    <field name="$_remainingQtyLeft" expr="eval: _originalQtyLeft - _stockLocationLine.sum{it.currentQty}" />
+  </action-record>
+
+  <form name="stock-location-line-details-wizard-form" title="Stock Location content" model="com.axelor.apps.stock.db.StockLocationLine"
+        onLoad="action-stock-location-line-atts-avg-price-scale"
+        onNew="action-stock-location-line-group-onnew, action-stock-location-line-record-fill-wizard-fields">
+    <panel name="mainPanel">
+      <field name="product" canEdit="false" domain="self.dtype = 'Product'" form-view="product-form" grid-view="product-grid"/>
+      <field name="currentQty"/>
+      <field name="futureQty"/>
+      <field name="unit" form-view="unit-form" grid-view="unit-grid"/>
+      <field name="avgPrice" onChange="action-stock-location-line-group-avg-price-onchange"/>
+      <field if="__config__.app.getApp('supplychain')?.getManageStockReservation()" if-module="axelor-supplychain" name="reservedQty" hidden="true"/>
+      <field name="trackingNumber" domain="self.product = :product"/>
+      <field name="rack"/>
+      <field name="detailsStockLocation"/>
+      <field name="$_maxQty"/>
+    </panel>
+    <panel name="lastInventoryPanel" title="Last inventory">
+      <field name="lastInventoryRealQty" title="Real Qty"/>
+      <field name="lastInventoryDateT" title="Date"/>
+    </panel>
+  </form>
+
+  <action-record name="action-stock-location-line-record-fill-wizard-fields" model="com.axelor.apps.stock.db.StockLocationLine">
+    <field name="product" expr="eval: __parent__._product"/>
+    <field name="detailsStockLocation" expr="eval: __parent__._stockLocation"/>
+    <field name="$_maxQty" expr="eval: __parent__._remainingQtyLeft"/>
+  </action-record>
 
 </object-views>

@@ -21,10 +21,12 @@ package com.axelor.apps.stock.web;
 import com.axelor.apps.base.db.Product;
 import com.axelor.apps.base.db.repo.ProductRepository;
 import com.axelor.apps.base.service.exception.TraceBackService;
+import com.axelor.apps.stock.db.StockLocation;
 import com.axelor.apps.stock.db.StockLocationLine;
 import com.axelor.apps.stock.db.StockMoveLine;
 import com.axelor.apps.stock.db.repo.StockMoveRepository;
 import com.axelor.apps.stock.service.StockLocationLineService;
+import com.axelor.apps.stock.service.StockLocationLineTrackingNumberConfigService;
 import com.axelor.apps.stock.service.StockMoveService;
 import com.axelor.apps.stock.service.WeightedAveragePriceService;
 import com.axelor.i18n.I18n;
@@ -96,6 +98,44 @@ public class ProductStockController {
       }
       Beans.get(WeightedAveragePriceService.class).computeAvgPriceForProduct(product);
       response.setReload(true);
+    } catch (Exception e) {
+      TraceBackService.trace(response, e);
+    }
+  }
+
+  public void trackingNumberConfigChangeOnLoad(ActionRequest request, ActionResponse response) {
+    try {
+      Context context = request.getContext();
+      Product product =
+          Beans.get(ProductRepository.class)
+              .find(((Integer) ((Map<?, ?>) context.get("_product")).get("id")).longValue());
+      response.setValue(
+          "$_oldTrackingNumberConfiguration", context.get("_oldTrackingNumberConfiguration"));
+      response.setValue("$_product", product);
+      List<Map<String, Object>> stockLocationLines =
+          Beans.get(StockLocationLineTrackingNumberConfigService.class)
+              .getStockLocationLines(product);
+      response.setValue("$_stockLocationLine", stockLocationLines);
+    } catch (Exception e) {
+      TraceBackService.trace(response, e);
+    }
+  }
+
+  public void openCreate(ActionRequest request, ActionResponse response) {
+    try {
+      Context context = request.getContext();
+      Product product =
+              Beans.get(ProductRepository.class)
+                      .find(((Integer) ((Map<?, ?>) context.get("_product")).get("id")).longValue());
+
+
+      response.setValue(
+              "$_oldTrackingNumberConfiguration", context.get("_oldTrackingNumberConfiguration"));
+      response.setValue("$_product", product);
+      List<Map<String, Object>> stockLocationLines =
+              Beans.get(StockLocationLineTrackingNumberConfigService.class)
+                      .getStockLocationLines(product);
+      response.setValue("$_stockLocationLine", stockLocationLines);
     } catch (Exception e) {
       TraceBackService.trace(response, e);
     }

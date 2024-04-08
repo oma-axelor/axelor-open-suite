@@ -12,6 +12,11 @@
           grid-view="complementary-product-grid" form-view="complementary-product-form"/>
       </insert>
     </extend>
+    <extend target="/">
+      <insert position="after">
+        <button name="addToCart" onClick=""
+      </insert>
+    </extend>
   </form>
 
   <action-attrs name="action-product-attrs-readonly-sellable">
